@@ -19,7 +19,7 @@ button{cursor:pointer} .primary{width:100%;border:0;border-radius:15px;backgroun
 .delete,.logout{border:1px solid #dfd0c4;background:#fff7f1;border-radius:9px;padding:7px 9px;font-size:10px;color:#70463a}
 .modal{display:none;position:fixed;inset:0;background:#0009;align-items:flex-end;justify-content:center;z-index:20} .sheet{background:#fffaf6;width:min(820px,100%);border-radius:25px 25px 0 0;padding:20px 17px 28px;max-height:92vh;overflow:auto}
 input,select{width:100%;padding:12px;border:1px solid #d9cbc0;border-radius:11px;background:#fff;margin:5px 0 11px;font-size:14px} label{font-size:11px;font-weight:700;color:#6d625b}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:9px} .secondary{width:100%;padding:11px;border:1px solid #dfd0c4;background:#f6ece4;border-radius:12px;font-weight:700}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:9px}.checks{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:5px 0 12px}.check{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e1d4ca;border-radius:11px;padding:10px;font-size:11px;color:#59483f}.check input{width:auto;margin:0}.hint{font-size:10px;color:var(--muted);margin:-5px 0 10px;line-height:1.4} .secondary{width:100%;padding:11px;border:1px solid #dfd0c4;background:#f6ece4;border-radius:12px;font-weight:700}
 #authView{max-width:430px;margin:7vh auto} #appView{display:none} .authcard{padding:22px} .authlogo{width:150px;margin:0 auto 18px;display:block} .authcard h2{text-align:center;margin:8px 0 4px} .authcard .sub{text-align:center;margin-bottom:18px}
 .msg{font-size:12px;line-height:1.4;margin:8px 0;color:#765347} .loading{font-size:12px;color:var(--muted)} .foot{text-align:center;font-size:10px;color:#9a8d84;margin-top:26px;letter-spacing:.06em}
 </style></head>
@@ -67,8 +67,7 @@ input,select{width:100%;padding:12px;border:1px solid #d9cbc0;border-radius:11px
 <h3>Registrar compra</h3>
 <label>Produto ou item</label><input id="item" placeholder="Ex.: algodão, tintura, organza, café">
 <div class="row"><div><label>Valor pago</label><input id="valor" type="number" step="0.01" placeholder="0,00"></div><div><label>Quantidade</label><input id="qtd" type="number" step="0.01" value="1"></div></div>
-<label>Categoria / destino</label><select id="destino"><option>Uso geral</option><option>Experiência / café e bebidas</option><option>Design tradicional</option><option>Design com tintura</option><option>Brow Lamination</option><option>Lash Lift</option><option>Ritual Glow</option></select>
-<label>Data</label><input id="data" type="date">
+<label>Tipo de gasto</label><select id="tipo" onchange="toggleProcedimentos()"><option value="material_compartilhado">Material de procedimento — compartilhado</option><option value="material_especifico">Material específico de procedimento</option><option value="despesa_espaco">Despesa geral do espaço</option><option value="experiencia">Experiência da cliente</option></select><div id="procArea"><label>Usado em quais procedimentos?</label><div class="hint">Marque todos em que este material é usado.</div><div class="checks"><label class="check"><input type="checkbox" name="proc" value="Design tradicional"> Design tradicional</label><label class="check"><input type="checkbox" name="proc" value="Design com tintura"> Design com tintura</label><label class="check"><input type="checkbox" name="proc" value="Brow Lamination"> Brow Lamination</label><label class="check"><input type="checkbox" name="proc" value="Lash Lift"> Lash Lift</label><label class="check"><input type="checkbox" name="proc" value="Ritual Glow"> Ritual Glow</label></div></div><label>Data</label><input id="data" type="date">
 <button class="primary" onclick="saveCompra()">Salvar compra</button><button class="secondary" onclick="closeModal()">Cancelar</button>
 </div></div>
 
@@ -108,16 +107,11 @@ async function loadCompras(){
 function render(){
  document.getElementById('total').textContent=money(compras.reduce((s,x)=>s+Number(x.valor||0),0)); document.getElementById('count').textContent=compras.length;
  let list=document.getElementById('list'); if(!compras.length){list.innerHTML='<span class="sub">Nenhuma compra registrada ainda.</span>';return}
- list.innerHTML=compras.map(x=>`<div class="item"><div class="itemtop"><strong>${esc(x.item)}</strong><strong>${money(x.valor)}</strong></div><div class="meta">${fmt(x.data)} · qtd. ${esc(x.quantidade)}</div><span class="badge">${esc(x.destino)}</span><div><button class="delete" onclick="removeCompra(${x.id})">Excluir</button></div></div>`).join('');
+ list.innerHTML=compras.map(x=>`<div class="item"><div class="itemtop"><strong>${esc(x.item)}</strong><strong>${money(x.valor)}</strong></div><div class="meta">${fmt(x.data)} · qtd. ${esc(x.quantidade)}</div><span class="badge">${esc(tipoLabel(x.tipo_gasto) || x.destino || '')}</span><div class="meta">${x.procedimentos && x.procedimentos.length ? 'Procedimentos: '+esc(x.procedimentos.join(', ')) : ''}</div><div><button class="delete" onclick="removeCompra(${x.id})">Excluir</button></div></div>`).join('');
 }
-async function saveCompra(){
- let item=document.getElementById('item').value.trim(), valor=Number(document.getElementById('valor').value), quantidade=Number(document.getElementById('qtd').value||1), destino=document.getElementById('destino').value, data=document.getElementById('data').value;
- if(!item||!valor||!data) return alert('Preencha item, valor e data.');
- const {error}=await sb.from('compras').insert({item,valor,quantidade,destino,data});
- if(error) return alert('Erro ao salvar: '+error.message);
- document.getElementById('item').value='';document.getElementById('valor').value='';document.getElementById('qtd').value='1'; closeModal(); await loadCompras();
-}
+function tipoLabel(t){const m={material_compartilhado:'Material compartilhado',material_especifico:'Material específico',despesa_espaco:'Despesa geral do espaço',experiencia:'Experiência da cliente'};return m[t]||'';}function toggleProcedimentos(){const t=document.getElementById('tipo').value;document.getElementById('procArea').style.display=(t==='material_compartilhado'||t==='material_especifico')?'block':'none';}function selectedProcedimentos(){return [...document.querySelectorAll('input[name="proc"]:checked')].map(x=>x.value);}async function saveCompra(){let item=document.getElementById('item').value.trim(),valor=Number(document.getElementById('valor').value),quantidade=Number(document.getElementById('qtd').value||1),tipo_gasto=document.getElementById('tipo').value,procedimentos=selectedProcedimentos(),data=document.getElementById('data').value;if(!item||!valor||!data)return alert('Preencha item, valor e data.');if((tipo_gasto==='material_compartilhado'||tipo_gasto==='material_especifico')&&!procedimentos.length)return alert('Marque pelo menos um procedimento.');const destino=tipoLabel(tipo_gasto);const {error}=await sb.from('compras').insert({item,valor,quantidade,destino,data,tipo_gasto,procedimentos});if(error)return alert('Erro ao salvar: '+error.message);document.getElementById('item').value='';document.getElementById('valor').value='';document.getElementById('qtd').value='1';document.querySelectorAll('input[name="proc"]').forEach(x=>x.checked=false);closeModal();await loadCompras();}
 async function removeCompra(id){if(!confirm('Excluir esta compra?'))return;const {error}=await sb.from('compras').delete().eq('id',id);if(error)return alert(error.message);await loadCompras();}
 sb.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_IN'&&session&&!currentUser)showApp(session.user)});
+toggleProcedimentos();
 init();
 </script></body></html>
